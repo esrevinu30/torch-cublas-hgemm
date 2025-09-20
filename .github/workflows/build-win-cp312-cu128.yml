@@ -66,10 +66,18 @@ jobs:
           echo "=== show first-level files in upstream ==="
           dir .\upstream
 
-      - name: Build wheel from upstream folder
+      - name: Build wheel from upstream folder (debug verbose)
         working-directory: ./upstream
         run: |
-          python -m pip wheel . --no-deps -w ../wheelhouse --verbose
+          echo "PWD:" && powershell -Command "Get-Location"
+          python -V
+          python -m pip --version
+          echo "Listing upstream files (recursive, first 300 lines):"
+          powershell -Command "Get-ChildItem -Recurse -Force . | Select-Object FullName,Length | Out-String -Width 4096" | Select-String -Pattern "."
+          echo "Running pip wheel now (verbose):"
+          python -m pip wheel . --no-deps -w ../wheelhouse --verbose 2>&1 | tee pip_wheel_build.log
+          echo "==== last 200 lines of pip build log ===="
+          powershell -Command "Get-Content pip_wheel_build.log -Tail 200" || true
 
       - name: Show produced wheels
         run: |
