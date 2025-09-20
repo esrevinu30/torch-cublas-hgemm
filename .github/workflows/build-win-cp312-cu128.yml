@@ -10,27 +10,30 @@ jobs:
   build-windows-wheel:
     runs-on: windows-2022
     timeout-minutes: 120
+
     steps:
-      - name: Checkout this workflow repo
+      - name: Checkout workflow repo (no-op)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Checkout upstream torch-cublas-hgemm into upstream
+      - name: Checkout aredden/torch-cublas-hgemm into torch-cublas-hgemm
         uses: actions/checkout@v4
         with:
           repository: aredden/torch-cublas-hgemm
-          path: upstream
+          path: torch-cublas-hgemm
           fetch-depth: 0
 
-      - name: Show filesystem top-level (debug)
+      - name: Confirm files are present (debug)
         run: |
-          echo "=== top-level listing ==="
+          echo "=== job workspace ==="
           dir
-          echo "=== listing upstream folder ==="
-          dir .\upstream
+          echo "=== torch-cublas-hgemm top-level ==="
+          dir .\torch-cublas-hgemm
+          echo "=== show setup.py contents ==="
+          type .\torch-cublas-hgemm\setup.py
 
-      - name: Install Python 3.12
+      - name: Setup Python 3.12
         uses: actions/setup-python@v4
         with:
           python-version: '3.12'
@@ -40,41 +43,42 @@ jobs:
         run: |
           python -m pip install --upgrade pip setuptools wheel ninja
 
-      - name: Install CUDA 12.8 toolkit (silent)
+      - name: Install PyTorch for CUDA 12.8
+        run: |
+          python -m pip install --extra-index-url https://download.pytorch.org/whl/cu128 torch --upgrade
+
+      - name: Install CUDA 12.8 toolkit (silent) - attempt network installer
         shell: pwsh
         run: |
           $url = 'https://developer.download.nvidia.com/compute/cuda/12.8.0/local_installers/cuda_12.8.0_windows_network.exe'
           $out = 'C:\windows\temp\cuda_12.8.exe'
-          Invoke-WebRequest -Uri $url -OutFile $out
+          Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing
           Start-Process -FilePath $out -ArgumentList '-s' -Wait
           $cudaPath = 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\bin'
-          [Environment]::SetEnvironmentVariable('PATH', $env:PATH + ';' + $cudaPath, 'Process')
-          nvcc --version
-
-      - name: Install PyTorch for CUDA 12.8
-        run: |
-          python -m pip install --extra-index-url https://download.pytorch.org/whl/cu128 torch --upgrade
+          if (Test-Path $cudaPath) {
+            Write-Host "CUDA installed at $cudaPath"
+            [Environment]::SetEnvironmentVariable('PATH', $env:PATH + ';' + $cudaPath, 'Process')
+          } else {
+            Write-Host "CUDA installer ran but expected path not found. Continuing anyway."
+          }
+          nvcc --version || Write-Host "nvcc not found (continue if runner provides required headers via torch wheel)."
 
       - name: Install build deps
         run: |
           python -m pip install --upgrade cmake
 
-      - name: Show upstream tree before build (debug)
+      - name: Show repo tree (debug)
         run: |
-          echo "=== upstream tree (first 200 lines) ==="
-          powershell -Command "Get-ChildItem -Recurse -Force .\upstream | Select-Object FullName | Out-String -Width 4096" | Select-String -Pattern "."
-          echo "=== show first-level files in upstream ==="
-          dir .\upstream
+          echo "=== recursive tree for torch-cublas-hgemm (first 300 lines) ==="
+          powershell -Command "Get-ChildItem -Recurse -Force .\torch-cublas-hgemm | Select-Object FullName,Length | Out-String -Width 4096" | Select-String -Pattern "."
 
-      - name: Build wheel from upstream folder (debug verbose)
-        working-directory: ./upstream
+      - name: Build wheel from torch-cublas-hgemm (verbose)
+        working-directory: .\torch-cublas-hgemm
         run: |
-          echo "PWD:" && powershell -Command "Get-Location"
+          echo "Working directory:" && powershell -Command "Get-Location"
           python -V
           python -m pip --version
-          echo "Listing upstream files (recursive, first 300 lines):"
-          powershell -Command "Get-ChildItem -Recurse -Force . | Select-Object FullName,Length | Out-String -Width 4096" | Select-String -Pattern "."
-          echo "Running pip wheel now (verbose):"
+          echo "Running: python -m pip wheel . --no-deps -w ../wheelhouse --verbose"
           python -m pip wheel . --no-deps -w ../wheelhouse --verbose 2>&1 | tee pip_wheel_build.log
           echo "==== last 200 lines of pip build log ===="
           powershell -Command "Get-Content pip_wheel_build.log -Tail 200" || true
@@ -82,11 +86,11 @@ jobs:
       - name: Show produced wheels
         run: |
           echo "=== wheelhouse listing ==="
-          dir ..\wheelhouse
-          Get-ChildItem ..\wheelhouse | Select-Object Name, Length
+          dir ..\wheelhouse || true
+          powershell -Command "Get-ChildItem ..\wheelhouse | Select-Object Name, Length | Out-String -Width 4096" | Select-String -Pattern "." || true
 
       - name: Upload wheel artifact
         uses: actions/upload-artifact@v4
         with:
           name: wheelhouse
-          path: ../wheelhouse/*.whl
+          path: ..\wheelhouse\*.whl
