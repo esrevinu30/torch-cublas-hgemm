@@ -11,8 +11,21 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 120
     steps:
-      - name: Checkout
+      - name: Checkout workflow repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Clone upstream torch-cublas-hgemm
+        run: |
+          if (-not (Test-Path -Path './torch-cublas-hgemm')) {
+            git clone https://github.com/aredden/torch-cublas-hgemm.git
+          } else {
+            cd torch-cublas-hgemm
+            git fetch --all
+            git reset --hard origin/main
+          }
+
 
       - name: Install Python 3.12
         uses: actions/setup-python@v4
