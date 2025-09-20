@@ -8,10 +8,10 @@ on:
 jobs:
   build-windows-wheel:
     runs-on: windows-2022
-    timeout-minutes: 120
+    timeout-minutes: 180
 
     steps:
-      - name: Checkout upstream repo into job root
+      - name: Checkout aredden/torch-cublas-hgemm into job root
         uses: actions/checkout@v4
         with:
           repository: aredden/torch-cublas-hgemm
@@ -37,6 +37,35 @@ jobs:
         run: |
           python -m pip install --upgrade pip setuptools wheel ninja
 
+      - name: Debug CUDA environment (must run before build)
+        shell: pwsh
+        run: |
+          echo "=== env vars (CUDA_HOME, PATH snippets) ==="
+          echo "CUDA_HOME=$env:CUDA_HOME"
+          echo "PATH contains CUDA? ->"
+          echo $env:PATH | Select-String -Pattern "CUDA" -AllMatches || true
+          echo ""
+          echo "=== nvcc version (if present) ==="
+          nvcc --version || echo "nvcc not found"
+          echo ""
+          echo "=== Check common CUDA install locations ==="
+          $candidates = @(
+            'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8',
+            'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.0',
+            'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA'
+          )
+          foreach ($p in $candidates) {
+            if (Test-Path $p) {
+              Write-Host "Found: $p"
+              Write-Host "Includes:"
+              Get-ChildItem -Force -Path (Join-Path $p 'include') -ErrorAction SilentlyContinue | Select-Object Name,Length | Out-String -Width 4096
+              Write-Host "Libs (x64):"
+              Get-ChildItem -Force -Path (Join-Path $p 'lib\x64') -ErrorAction SilentlyContinue | Select-Object Name,Length | Out-String -Width 4096
+            } else {
+              Write-Host "Not found: $p"
+            }
+          }
+
       - name: Install PyTorch for CUDA 12.8
         run: |
           python -m pip install --extra-index-url https://download.pytorch.org/whl/cu128 torch --upgrade
@@ -45,15 +74,22 @@ jobs:
         run: |
           python -m pip install --upgrade cmake
 
+      - name: Show repo tree (debug)
+        run: |
+          echo "=== recursive tree for repo (first 300 lines) ==="
+          powershell -Command "Get-ChildItem -Recurse -Force . | Select-Object FullName,Length | Out-String -Width 4096" | Select-String -Pattern "."
+
       - name: Build wheel from repo root (verbose)
         run: |
           echo "Running in:" && powershell -Command "Get-Location"
           echo "Files to build:" && powershell -Command "Get-ChildItem -Force | Select-Object Name | Out-String -Width 4096"
-          python -m pip wheel . --no-deps -w ./wheelhouse --verbose
+          python -m pip wheel . --no-deps -w ./wheelhouse --verbose 2>&1 | tee pip_wheel_build.log
+          echo "==== last 200 lines of pip build log ===="
+          powershell -Command "Get-Content pip_wheel_build.log -Tail 200" || true
 
       - name: Show produced wheels
         run: |
-          echo "=== wheelhouse ==="
+          echo "=== wheelhouse listing ==="
           dir .\wheelhouse || echo "no wheelhouse"
 
       - name: Upload wheel artifact
