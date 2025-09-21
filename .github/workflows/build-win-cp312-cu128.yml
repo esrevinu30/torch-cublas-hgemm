@@ -38,13 +38,13 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel ninja cmake
 
       - name: Install CUDA 12.8 via cuda-toolkit action (Windows)
-        uses: Jimver/cuda-toolkit@v2
+        uses: Jimver/cuda-toolkit@v0.2.27
         with:
-          cuda: '12.8.0'
-          method: 'local'    # local installer on Windows
-          windows_method: 'network' # network installer on Windows
+          cuda: "12.8.0"
+          method: "local"
+          windows_method: "network"
 
-      - name: Ensure CUDA env vars visible to process (pwsh)
+      - name: Ensure CUDA env vars visible to process
         shell: pwsh
         run: |
           $cudaRoot = 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8'
