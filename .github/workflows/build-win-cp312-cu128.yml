@@ -35,27 +35,30 @@ jobs:
 
       - name: Ensure pip tooling
         run: |
-          python -m pip install --upgrade pip setuptools wheel ninja
+          python -m pip install --upgrade pip setuptools wheel ninja cmake
 
-      - name: Install CUDA toolkit via NVIDIA action
-        uses: nvidia/setup-cuda@v2
+      - name: Install CUDA 12.8 via cuda-toolkit action (Windows)
+        uses: Jimver/cuda-toolkit@v2
         with:
-          version: '12.8'
-          path: 'C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.8'
+          cuda: '12.8.0'
+          method: 'local'    # local installer on Windows
+          windows_method: 'network' # network installer on Windows
 
       - name: Ensure CUDA env vars visible to process (pwsh)
         shell: pwsh
         run: |
           $cudaRoot = 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8'
           if (Test-Path $cudaRoot) {
-            echo "Setting CUDA_HOME and PATH for process"
+            Write-Host "Setting CUDA_HOME and PATH for process"
             [Environment]::SetEnvironmentVariable('CUDA_HOME', $cudaRoot, 'Process')
-            $newPath = $env:PATH + ';' + (Join-Path $cudaRoot 'bin') + ';' + (Join-Path $cudaRoot 'lib\x64')
+            $bin = Join-Path $cudaRoot 'bin'
+            $libx64 = Join-Path $cudaRoot 'lib\x64'
+            $newPath = "$env:PATH;$bin;$libx64"
             [Environment]::SetEnvironmentVariable('PATH', $newPath, 'Process')
           } else {
-            echo "CUDA path not found at $cudaRoot"
+            Write-Host "CUDA path not found at $cudaRoot (action may have installed elsewhere)"
           }
-          nvcc --version || echo "nvcc not found"
+          nvcc --version || Write-Host "nvcc not found"
 
       - name: Debug CUDA environment (details)
         shell: pwsh
@@ -69,10 +72,6 @@ jobs:
       - name: Install PyTorch for CUDA 12.8
         run: |
           python -m pip install --extra-index-url https://download.pytorch.org/whl/cu128 torch --upgrade
-
-      - name: Install build deps
-        run: |
-          python -m pip install --upgrade cmake
 
       - name: Show repo tree (debug)
         run: |
