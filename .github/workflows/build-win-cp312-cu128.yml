@@ -37,27 +37,25 @@ jobs:
         run: |
           python -m pip install --upgrade pip setuptools wheel ninja
 
-      - name: Install CUDA 12.8 toolkit (silent) and set CUDA_HOME
+      - name: Install CUDA toolkit via NVIDIA action
+        uses: nvidia/setup-cuda@v2
+        with:
+          version: '12.8'
+          path: 'C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.8'
+
+      - name: Ensure CUDA env vars visible to process (pwsh)
         shell: pwsh
         run: |
-          $installerUrl = 'https://developer.download.nvidia.com/compute/cuda/12.8.0/local_installers/cuda_12.8.0_windows_network.exe'
-          $out = 'C:\windows\temp\cuda_12.8.exe'
-          Write-Host "Downloading CUDA installer..."
-          Invoke-WebRequest -Uri $installerUrl -OutFile $out -UseBasicParsing
-          Write-Host "Running CUDA installer (silent)..."
-          Start-Process -FilePath $out -ArgumentList '-s' -Wait
-          # common install path
           $cudaRoot = 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8'
           if (Test-Path $cudaRoot) {
-            Write-Host "CUDA found at $cudaRoot"
+            echo "Setting CUDA_HOME and PATH for process"
             [Environment]::SetEnvironmentVariable('CUDA_HOME', $cudaRoot, 'Process')
             $newPath = $env:PATH + ';' + (Join-Path $cudaRoot 'bin') + ';' + (Join-Path $cudaRoot 'lib\x64')
             [Environment]::SetEnvironmentVariable('PATH', $newPath, 'Process')
           } else {
-            Write-Host "CUDA installer did not produce expected folder $cudaRoot. Will continue; setup.py may still find headers via torch's CUDA or fail."
+            echo "CUDA path not found at $cudaRoot"
           }
-          Write-Host "nvcc check:"
-          nvcc --version || Write-Host "nvcc not found"
+          nvcc --version || echo "nvcc not found"
 
       - name: Debug CUDA environment (details)
         shell: pwsh
@@ -65,11 +63,8 @@ jobs:
           echo "CUDA_HOME=$env:CUDA_HOME"
           echo "PATH snippet:"
           echo $env:PATH | Select-String -Pattern "CUDA" -AllMatches || true
-          echo "Check candidate CUDA locations:"
-          $candidates = @('C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8','C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA')
-          foreach ($p in $candidates) {
-            if (Test-Path $p) { Write-Host "Found: $p"; Get-ChildItem -Path (Join-Path $p 'include') -ErrorAction SilentlyContinue | Select-Object Name | Out-String -Width 4096; Get-ChildItem -Path (Join-Path $p 'lib\x64') -ErrorAction SilentlyContinue | Select-Object Name | Out-String -Width 4096 } else { Write-Host "Not found: $p" }
-          }
+          $p = 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8'
+          if (Test-Path $p) { Write-Host "Found: $p"; Get-ChildItem -Path (Join-Path $p 'include') -ErrorAction SilentlyContinue | Select-Object Name | Out-String -Width 4096; Get-ChildItem -Path (Join-Path $p 'lib\x64') -ErrorAction SilentlyContinue | Select-Object Name | Out-String -Width 4096 } else { Write-Host "Not found: $p" }
 
       - name: Install PyTorch for CUDA 12.8
         run: |
