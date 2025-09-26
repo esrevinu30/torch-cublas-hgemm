@@ -11,30 +11,30 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      # 1) Checkout your fork (which now has all the code)
+      # 1) Checkout your fork’s code (contains torch-cublas-hgemm/)
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2) Install Python 3.12
+      # 2) Set up Python 3.12
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.12'
 
-      # 3) Install build tools, CMake, Ninja and CUDA‐enabled PyTorch
+      # 3) Install build tools (setuptools, wheel, cmake, ninja) and PyTorch+CUDA
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel cmake ninja
           pip install torch==2.8.0+cu128 \
             --extra-index-url https://download.pytorch.org/whl/cu128
 
-      # 4) Build the wheel in the nested folder that has setup.py
+      # 4) Build the wheel by calling setup.py directly
       - name: Build wheel
         run: |
-          cd torch-cublas-hgemm             # <- this folder holds setup.py
+          cd torch-cublas-hgemm             # <- folder that holds setup.py
           python setup.py bdist_wheel --dist-dir dist
 
-      # 5) Smoke-test the newly built wheel
+      # 5) Smoke‐test your wheel
       - name: Smoke-test
         run: |
           cd torch-cublas-hgemm
@@ -44,10 +44,10 @@ jobs:
           from cublas_ops import CublasLinear
           lin = CublasLinear(4,4,device="cuda",dtype=torch.float16)
           x = torch.randn(1,4,4,device="cuda").half()
-          print("✅ PASS:", lin(x).shape)
+          print("✅ PASS – output shape:", lin(x).shape)
           PYCODE
 
-      # 6) Upload the .whl so you can download it
+      # 6) Upload the .whl artifact
       - name: Upload wheel artifact
         uses: actions/upload-artifact@v4
         with:
