@@ -11,29 +11,36 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      # 1) Checkout your fork (it contains setup.py at the root)
+      # 1) Checkout your repo (contains the CUBLAS source & setup.py)
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2) Install Python 3.12
+      # 2) Set up Python 3.12
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.12'
 
-      # 3) Install build tools + CUDA-enabled PyTorch
+      # 3) Install build tools, CMake, Ninja and CUDA-enabled PyTorch
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel cmake ninja
           pip install torch==2.8.0+cu128 \
             --extra-index-url https://download.pytorch.org/whl/cu128
 
-      # 4) Build the wheel via setup.py in the repo root
+      # 4) Locate setup.py anywhere and build the wheel so it sees torch
       - name: Build wheel
-        run: python setup.py bdist_wheel --dist-dir dist
+        shell: pwsh
+        run: |
+          $root = $PWD
+          $setup = Get-ChildItem -Path . -Recurse -Filter setup.py | Select-Object -First 1
+          if (-not $setup) { throw "❌ setup.py not found in repo!" }
+          Push-Location $setup.DirectoryName
+          python setup.py bdist_wheel --dist-dir "$root/dist"
+          Pop-Location
 
-      # 5) Smoke-test the freshly built wheel
-      - name: Smoke-test wheel
+      # 5) Smoke-test the built wheel
+      - name: Smoke-test
         run: |
           pip install dist/*.whl
           python - <<'PYCODE'
@@ -44,8 +51,8 @@ jobs:
           print("✅ PASS – output shape:", lin(x).shape)
           PYCODE
 
-      # 6) Upload the .whl artifact
-      - name: Upload wheel artifact
+      # 6) Upload the wheel artifact
+      - name: Upload wheel
         uses: actions/upload-artifact@v4
         with:
           name: torch-cublas-hgemm-cp312-cu128
