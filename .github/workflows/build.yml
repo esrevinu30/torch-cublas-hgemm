@@ -11,33 +11,30 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      # 1) Checkout your fork’s code (contains torch-cublas-hgemm/)
+      # 1) Checkout your fork (it contains setup.py at the root)
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2) Set up Python 3.12
+      # 2) Install Python 3.12
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.12'
 
-      # 3) Install build tools (setuptools, wheel, cmake, ninja) and PyTorch+CUDA
+      # 3) Install build tools + CUDA-enabled PyTorch
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel cmake ninja
           pip install torch==2.8.0+cu128 \
             --extra-index-url https://download.pytorch.org/whl/cu128
 
-      # 4) Build the wheel by calling setup.py directly
+      # 4) Build the wheel via setup.py in the repo root
       - name: Build wheel
-        run: |
-          cd torch-cublas-hgemm             # <- folder that holds setup.py
-          python setup.py bdist_wheel --dist-dir dist
+        run: python setup.py bdist_wheel --dist-dir dist
 
-      # 5) Smoke‐test your wheel
-      - name: Smoke-test
+      # 5) Smoke-test the freshly built wheel
+      - name: Smoke-test wheel
         run: |
-          cd torch-cublas-hgemm
           pip install dist/*.whl
           python - <<'PYCODE'
           import torch
@@ -52,5 +49,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: torch-cublas-hgemm-cp312-cu128
-          path: torch-cublas-hgemm/dist/*.whl
+          path: dist/*.whl
 
