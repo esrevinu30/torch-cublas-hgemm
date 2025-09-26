@@ -1,0 +1,56 @@
+name: Build torch-cublas-hgemm Wheel
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      # 1) Clone the upstream CUBLAS repo
+      - name: Checkout CublasOps source
+        uses: actions/checkout@v4
+        with:
+          repository: aredden/torch-cublas-hgemm
+          path: cublas-src
+
+      # 2) Set up Python 3.12
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      # 3) Install build dependencies + PyTorch+CUDA
+      - name: Install build deps
+        run: |
+          python -m pip install --upgrade pip setuptools wheel cmake ninja
+          pip install torch==2.8.0+cu128 \
+            --extra-index-url https://download.pytorch.org/whl/cu128
+
+      # 4) Build the wheel via setup.py
+      - name: Build wheel
+        working-directory: cublas-src
+        run: |
+          python setup.py bdist_wheel --dist-dir dist
+
+      # 5) Smoke‐test and upload
+      - name: Quick smoke-test
+        working-directory: cublas-src
+        run: |
+          python - <<'PYCODE'
+          import torch
+          from cublas_ops import CublasLinear
+          lin = CublasLinear(8,8,device="cuda",dtype=torch.float16)
+          x = torch.randn(1,8,8,device="cuda").half()
+          print("OK:", lin(x).shape)
+          PYCODE
+
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: torch-cublas-hgemm-cp312-cu128
+          path: cublas-src/dist/*.whl
