@@ -11,8 +11,6 @@ on:
 jobs:
   build-windows-cp312-cu128:
     name: Windows-x64 Python 3.12 (CUDA 12.8, PyTorch 2.8.0+cu128)
-    # If you need to lock in Windows Server 2022 rather than migrate to 2025,
-    # use runs-on: windows-2022  
     runs-on: windows-latest
 
     steps:
@@ -30,7 +28,7 @@ jobs:
 
       - name: Install PyTorch 2.8.0+cu128
         run: |
-          pip install torch==2.8.0.250501+cu128 --extra-index-url https://download.pytorch.org/whl/cu128
+          pip install torch==2.8.0+cu128 --extra-index-url https://download.pytorch.org/whl/cu128
 
       - name: Build the CublasOps wheel
         run: |
@@ -52,4 +50,5 @@ jobs:
         with:
           name: torch-cublas-hgemm-cp312-cu128
           path: dist/*.whl
+
 
