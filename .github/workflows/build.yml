@@ -12,6 +12,10 @@ jobs:
   build:
     runs-on: windows-latest
 
+    # Target the RTX 4060’s compute capability
+    env:
+      TORCH_CUDA_ARCH_LIST: "8.9"
+
     strategy:
       matrix:
         python-version: ["3.12"]
@@ -32,16 +36,18 @@ jobs:
       - name: Install official PyTorch 2.8.0+cu128
         run: python -m pip install torch==2.8.0+cu128 --extra-index-url https://download.pytorch.org/whl/cu128
 
-      - name: Install CUDA Toolkit 12.8
-        uses: Jimver/cuda-toolkit@v0.2.24
-        with:
-          cuda: "12.8.0"
-          use-github-cache: false
-          use-local-cache: false
+      - name: Install CUDA Toolkit 12.8 via Chocolatey
+        shell: pwsh
+        run: |
+          choco install -y cuda --version=12.8.0
+          & "$Env:ChocolateyInstall\helpers\RefreshEnvironment.ps1"
 
       - name: Export CUDA_HOME
         shell: pwsh
-        run: echo "CUDA_HOME=$Env:CUDA_PATH" >> $Env:GITHUB_ENV
+        run: |
+          $nvcc = (Get-Command nvcc -ErrorAction Stop).Source
+          $cudaRoot = Split-Path -Parent (Split-Path -Parent $nvcc)
+          echo "CUDA_HOME=$cudaRoot" >> $Env:GITHUB_ENV
 
       - name: Build wheel (no isolation)
         run: python -m pip wheel . --no-deps --no-build-isolation -w dist
@@ -51,4 +57,5 @@ jobs:
         with:
           name: torch-cublas-hgemm-wheel
           path: dist/*.whl
+
 
