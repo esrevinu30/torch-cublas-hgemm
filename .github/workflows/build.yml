@@ -18,8 +18,8 @@ jobs:
         torch-version: ["2.8.0+cu128"]
 
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v3
+      - name: Check out code
+        uses: actions/checkout@v4
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
@@ -33,7 +33,7 @@ jobs:
           python -m pip install torch==${{ matrix.torch-version }} \
             -f https://download.pytorch.org/whl/cu128
 
-      - name: Build wheel via pip (no isolation)
+      - name: Build wheel (no isolation)
         run: |
           python -m pip wheel . \
             --no-deps \
@@ -41,7 +41,7 @@ jobs:
             -w dist
 
       - name: Upload wheel artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: torch-cublas-hgemm-wheel
           path: dist/*.whl
